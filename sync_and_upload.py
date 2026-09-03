@@ -1,4 +1,3 @@
-
 import os
 import sys
 import json
@@ -27,6 +26,7 @@ TARGET_INSTRUMENTS = {
     "USDJPY": {"symbol": "USD/JPY"},
     "EURUSD": {"symbol": "EUR/USD"},
     "GBPUSD": {"symbol": "GBP/USD"},
+    "EURGBP": {"symbol": "EUR/GBP"},
     "US30":   {"symbol": "USA30.IDX/USD"},
 }
 
@@ -39,6 +39,33 @@ def get_or_create_subfolder(parent_id, folder_name):
     file_metadata = {'name': folder_name, 'mimeType': 'application/vnd.google-apps.folder', 'parents': [parent_id]}
     folder = service.files().create(body=file_metadata, fields='id').execute()
     return folder.get('id')
+
+def find_existing_file_id(parent_folder_id, file_name):
+    """指定フォルダ内に同名ファイルが存在するか検索し、IDを返す"""
+    query = f"name = '{file_name}' and '{parent_folder_id}' in parents and trashed = false"
+    res = service.files().list(q=query, spaces='drive', fields='files(id, name)').execute()
+    files = res.get('files', [])
+    return files[0]['id'] if files else None
+
+def upload_or_overwrite(folder_id, file_name, local_filepath):
+    """同名ファイルが存在する場合は上書き更新、なければ新規作成"""
+    existing_id = find_existing_file_id(folder_id, file_name)
+    media = MediaFileUpload(local_filepath, resumable=True)
+
+    if existing_id:
+        print(f"  -> 既存ファイルを検出。上書き更新します (ID: {existing_id})")
+        service.files().update(
+            fileId=existing_id,
+            media_body=media
+        ).execute()
+    else:
+        print(f"  -> 新規アップロード")
+        file_metadata = {'name': file_name, 'parents': [folder_id]}
+        service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields='id'
+        ).execute()
 
 def run_sync():
     now = datetime.utcnow()
@@ -55,7 +82,7 @@ def run_sync():
             csv_path = os.path.join(tmpdir, f"{folder_name}.csv")
             parquet_path = os.path.join(tmpdir, parquet_name)
 
-            print(f"[{folder_name}] 取得開始: {start_date.strftime('%Y-%m-%d')} ~ {now.strftime('%Y-%m-%d')}")
+            print(f"\n[{folder_name}] 取得開始: {start_date.strftime('%Y-%m-%d')} ~ {now.strftime('%Y-%m-%d')}")
             try:
                 df = dukascopy_python.fetch(
                     instrument=symbol,
@@ -65,23 +92,25 @@ def run_sync():
                     end=now,
                 )
 
-                if df is not None and not df.empty:
+                # 空データ・レコードなしのチェック（実データが存在する場合のみ処理）
+                if df is not None and not df.empty and len(df) > 0:
+                    print(f"[{folder_name}] 取得成功: {len(df):,} 行")
                     df.to_csv(csv_path)
                     
+                    # DuckDBによるParquet高圧縮
                     con.execute(f"COPY (SELECT * FROM read_csv_auto('{csv_path}')) TO '{parquet_path}' (FORMAT PARQUET, COMPRESSION snappy);")
                     
-                    print(f"[{folder_name}] 送信中: {parquet_name}")
-                    media = MediaFileUpload(parquet_path, resumable=True)
-                    file_metadata = {'name': parquet_name, 'parents': [subfolder_id]}
-                    service.files().create(body=file_metadata, media_body=media, fields='id').execute()
-                    print(f"[{folder_name}] アップロード完了")
+                    # 上書きまたは新規保存
+                    upload_or_overwrite(subfolder_id, parquet_name, parquet_path)
+                    print(f"[{folder_name}] 完了: {parquet_name}")
                     
                     if os.path.exists(csv_path): os.remove(csv_path)
                     if os.path.exists(parquet_path): os.remove(parquet_path)
                 else:
-                    print(f"[{folder_name}] データなし")
+                    print(f"[{folder_name}] スキップ: 有効な実データが存在しないため保存しません")
+
             except Exception as e:
-                print(f"[{folder_name}] エラー: {e}")
+                print(f"[{folder_name}] エラー発生: {e}")
 
 if __name__ == "__main__":
     run_sync()
