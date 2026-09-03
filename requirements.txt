@@ -1,1 +1,10 @@
 
+dukascopy-python
+pandas
+python-dateutil
+duckdb
+pyarrow
+fastparquet
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
