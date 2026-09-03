@@ -34,12 +34,47 @@ creds = Credentials.from_authorized_user_info(json.loads(TOKEN_JSON_STR), SCOPES
 service = build('drive', 'v3', credentials=creds)
 
 TARGET_INSTRUMENTS = {
+    # --- 貴金属・指数 ---
     "XAUUSD": {"symbol": "XAU/USD"},
+    "US30":   {"symbol": "USA30.IDX/USD"},
+
+    # --- ドルストレート ---
     "USDJPY": {"symbol": "USD/JPY"},
     "EURUSD": {"symbol": "EUR/USD"},
     "GBPUSD": {"symbol": "GBP/USD"},
+    "AUDUSD": {"symbol": "AUD/USD"},
+    "NZDUSD": {"symbol": "NZD/USD"},
+    "USDCAD": {"symbol": "USD/CAD"},
+    "USDCHF": {"symbol": "USD/CHF"},
+
+    # --- クロス円 ---
+    "EURJPY": {"symbol": "EUR/JPY"},
+    "GBPJPY": {"symbol": "GBP/JPY"},
+    "AUDJPY": {"symbol": "AUD/JPY"},
+    "NZDJPY": {"symbol": "NZD/JPY"},
+    "CADJPY": {"symbol": "CAD/JPY"},
+    "CHFJPY": {"symbol": "CHF/JPY"},
+
+    # --- ユーロクロス ---
     "EURGBP": {"symbol": "EUR/GBP"},
-    "US30":   {"symbol": "USA30.IDX/USD"},
+    "EURAUD": {"symbol": "EUR/AUD"},
+    "EURNZD": {"symbol": "EUR/NZD"},
+    "EURCAD": {"symbol": "EUR/CAD"},
+    "EURCHF": {"symbol": "EUR/CHF"},
+
+    # --- ポンドクロス ---
+    "GBPAUD": {"symbol": "GBP/AUD"},
+    "GBPNZD": {"symbol": "GBP/NZD"},
+    "GBPCAD": {"symbol": "GBP/CAD"},
+    "GBPCHF": {"symbol": "GBP/CHF"},
+
+    # --- オセアニア・その他クロス ---
+    "AUDNZD": {"symbol": "AUD/NZD"},
+    "AUDCAD": {"symbol": "AUD/CAD"},
+    "AUDCHF": {"symbol": "AUD/CHF"},
+    "NZDCAD": {"symbol": "NZD/CAD"},
+    "NZDCHF": {"symbol": "NZD/CHF"},
+    "CADCHF": {"symbol": "CAD/CHF"},
 }
 
 def get_or_create_subfolder(parent_id, folder_name):
