@@ -1,28 +1,51 @@
-name: Weekly Tick Data Sync
+name: Weekly Tick Data Sync & Export
 
 on:
   schedule:
-    - cron: '0 22 * * 5' # 毎週土曜 日本時間 07:00 (UTC 金曜 22:00)
-  workflow_dispatch:      # 管理画面から手動ボタン実行も可能にする設定
+    - cron: '0 22 * * 5' # 毎週土曜朝7:00(JST)の定期同期
+  workflow_dispatch:
+    inputs:
+      target_format:
+        description: '出力フォーマットを選択'
+        required: true
+        default: 'BOTH'
+        type: choice
+        options:
+          - 'MT4'
+          - 'MT5'
+          - 'BOTH'
+      recipient_email:
+        description: '送信先メールアドレス（未入力の場合はメール送信なし）'
+        required: false
+        default: ''
+      zip_password:
+        description: 'ZIP解凍パスワード（空欄の場合は自動生成）'
+        required: false
+        default: ''
 
 jobs:
-  sync:
+  sync_and_export:
     runs-on: ubuntu-latest
     steps:
       - name: リポジトリのチェックアウト
         uses: actions/checkout@v4
 
-      - name: Pythonのセットアップ
+      - name: Python環境のセットアップ
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: 依存関係のインストール
+      - name: 依存ライブラリのインストール
         run: pip install -r requirements.txt
 
-      - name: ティック同期とGoogleドライブアップロード
+      - name: データ同期・変換・メール送信
         env:
           GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
           GDRIVE_TOKEN_JSON: ${{ secrets.GDRIVE_TOKEN_JSON }}
+          MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
+          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+          TARGET_FORMAT: ${{ github.event.inputs.target_format || 'NONE' }}
+          RECIPIENT_EMAIL: ${{ github.event.inputs.recipient_email || '' }}
+          ZIP_PASSWORD: ${{ github.event.inputs.zip_password || '' }}
         run: python sync_and_upload.py
