@@ -2,7 +2,7 @@ name: Weekly Tick Data Sync & Export
 
 on:
   schedule:
-    - cron: '0 22 * * 5' # 毎週土曜朝7:00(JST)の定期同期
+    - cron: '0 22 * * 5' # 毎週土曜朝7:00(JST) 定期実行
   workflow_dispatch:
     inputs:
       target_format:
@@ -14,8 +14,9 @@ on:
           - 'MT4'
           - 'MT5'
           - 'BOTH'
+          - 'NONE'
       recipient_email:
-        description: '送信先メールアドレス（未入力の場合はメール送信なし）'
+        description: '送信先メールアドレス（未入力の場合は画面にリンク発行のみ）'
         required: false
         default: ''
       zip_password:
@@ -39,7 +40,7 @@ jobs:
       - name: 依存ライブラリのインストール
         run: pip install -r requirements.txt
 
-      - name: データ同期・変換・メール送信
+      - name: データ同期・変換・リンク発行
         env:
           GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
           GDRIVE_TOKEN_JSON: ${{ secrets.GDRIVE_TOKEN_JSON }}
