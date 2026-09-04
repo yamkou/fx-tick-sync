@@ -1,0 +1,8 @@
+# Streamlit Community Cloud が読むファイル（app_cloud.py 用）。Actions は requirements-actions.txt を使う。
+duckdb>=1.1,<2
+pyarrow>=15
+numpy>=1.26
+streamlit>=1.35
+google-api-python-client>=2.120
+google-auth>=2.29
+google-auth-httplib2>=0.2
