@@ -1,52 +1,37 @@
-name: Weekly Tick Data Sync & Export
+name: Weekly Tick Data Sync
 
 on:
   schedule:
-    - cron: '0 22 * * 5' # 毎週土曜朝7:00(JST) 定期実行
+    - cron: '0 2 * * 6' # 毎週土曜日 UTC 02:00 (日本時間 11:00)
   workflow_dispatch:
-    inputs:
-      target_format:
-        description: '出力フォーマットを選択'
-        required: true
-        default: 'BOTH'
-        type: choice
-        options:
-          - 'MT4'
-          - 'MT5'
-          - 'BOTH'
-          - 'NONE'
-      recipient_email:
-        description: '送信先メールアドレス（未入力の場合は画面にリンク発行のみ）'
-        required: false
-        default: ''
-      zip_password:
-        description: 'ZIP解凍パスワード（空欄の場合は自動生成）'
-        required: false
-        default: ''
+
+concurrency:
+  group: sync-tick-data
+  cancel-in-progress: false
 
 jobs:
-  sync_and_export:
+  sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
     steps:
-      - name: リポジトリのチェックアウト
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Python環境のセットアップ
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: 依存ライブラリのインストール
-        run: pip install -r requirements.txt
+      - name: Install dependencies
+        run: |
+          pip install dukascopy-python duckdb google-api-python-client google-auth python-dateutil
 
-      - name: データ同期・変換・リンク発行
+      - name: Run Self-Healing Sync
         env:
-          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
           GDRIVE_TOKEN_JSON: ${{ secrets.GDRIVE_TOKEN_JSON }}
-          MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
-          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
-          TARGET_FORMAT: ${{ github.event.inputs.target_format || 'NONE' }}
-          RECIPIENT_EMAIL: ${{ github.event.inputs.recipient_email || '' }}
-          ZIP_PASSWORD: ${{ github.event.inputs.zip_password || '' }}
-        run: python sync_and_upload.py
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+        run: |
+          python sync_and_upload.py
