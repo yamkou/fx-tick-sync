@@ -141,7 +141,11 @@ def build_distribution(service, con, export_folder_id: str, new_csvs: dict[str, 
         return
 
     pwd = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(16))
-    print(f"::add-mask::{pwd}")  # 以降のログでマスクされる
+
+    # メール送信時のみパスワードをログからマスク（Summary には表示しないため）
+    # メール未指定時は Summary にパスワードを表示するのでマスクしない
+    if RECIPIENT_EMAIL:
+        print(f"::add-mask::{pwd}")
 
     zip_name = f"{ZIP_PREFIX}{TARGET_FORMAT}_{EXPORT_TZ}_{now:%Y%m%d_%H%M}.zip"
     zip_path = tmpdir / zip_name
