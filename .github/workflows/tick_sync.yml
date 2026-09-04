@@ -1,3 +1,4 @@
+
 name: Weekly Tick Data Sync
 
 on:
@@ -13,8 +14,8 @@ on:
       export_tz:
         description: '配布 ZIP の時刻'
         type: choice
-        default: 'broker'
-        options: ['broker', 'utc']
+        default: 'jst'
+        options: ['broker', 'utc', 'jst']
       recipient_email:
         description: '送付先メール（空なら Step Summary にパスワード表示）'
         required: false
@@ -55,7 +56,7 @@ jobs:
           MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
           MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
           TARGET_FORMAT: ${{ github.event.inputs.target_format || 'NONE' }}
-          EXPORT_TZ: ${{ github.event.inputs.export_tz || 'broker' }}
+          EXPORT_TZ: ${{ github.event.inputs.export_tz || 'jst' }}
           RECIPIENT_EMAIL: ${{ github.event.inputs.recipient_email || '' }}
           SYNC_SYMBOLS: ${{ github.event.inputs.sync_symbols || '' }}
           MAX_BACKFILL_DAYS: '60'
