@@ -1,9 +1,0 @@
-dukascopy-python
-pandas
-duckdb
-pyarrow
-pyzipper
-streamlit
-google-api-python-client
-google-auth-httplib2
-google-auth-oauthlib
