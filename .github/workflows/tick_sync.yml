@@ -1,4 +1,3 @@
-
 name: Weekly Tick Data Sync
 
 on:
@@ -14,7 +13,7 @@ on:
       export_tz:
         description: '配布 ZIP の時刻'
         type: choice
-        default: 'jst'
+        default: 'broker'
         options: ['broker', 'utc', 'jst']
       recipient_email:
         description: '送付先メール（空なら Step Summary にパスワード表示）'
@@ -61,3 +60,4 @@ jobs:
           SYNC_SYMBOLS: ${{ github.event.inputs.sync_symbols || '' }}
           MAX_BACKFILL_DAYS: '60'
         run: python sync_and_upload.py
+
