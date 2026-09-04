@@ -5,6 +5,9 @@
   EST(UTC-5)+7 = UTC+2、EDT(UTC-4)+7 = UTC+3 となり DST 判定が不要になる。
   ※ 旧コードの `timezone('America/New_York', ts)::VARCHAR LIKE '%-04:00'` は
     常に偽（timezone() は naive TIMESTAMP を返しオフセットが付かない）。
+
+JST（日本時間 UTC+9）:
+    日本は夏時間が無いので timezone('Asia/Tokyo', ts) で常に UTC+9。
 """
 from __future__ import annotations
 
@@ -17,11 +20,18 @@ import numpy as np
 
 from .duck import normalized_select, sql_str
 
-TZ_MODES = ("broker", "utc")
+TZ_MODES = ("broker", "utc", "jst")
+
+TZ_LABELS = {
+    "broker": "ブローカー時間（冬GMT+2 / 夏GMT+3）",
+    "utc": "UTC（GMT+0）",
+    "jst": "日本時間（JST / UTC+9）",
+}
 
 _TIME_EXPR = {
     "broker": "timezone('America/New_York', CAST(timestamp AS TIMESTAMPTZ)) + INTERVAL 7 HOUR",
     "utc": "timezone('UTC', CAST(timestamp AS TIMESTAMPTZ))",
+    "jst": "timezone('Asia/Tokyo', CAST(timestamp AS TIMESTAMPTZ))",
 }
 
 # MT5 のティック FLAGS: TICK_FLAG_BID(2) | TICK_FLAG_ASK(4)
