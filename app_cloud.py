@@ -118,7 +118,7 @@ tz_mode = st.radio(
     "3. 時刻",
     list(mt_export.TZ_LABELS.keys()),
     format_func=lambda k: mt_export.TZ_LABELS[k],
-    index=2,  # 既定を JST に
+    index=0,  # 既定をブローカー時間に
     horizontal=True,
 )
 
