@@ -56,6 +56,14 @@ class LocalHTTPIntegrationTests(unittest.TestCase):
         self.assertEqual(self.local.send(self.beat)[0],403)
         self.assertEqual(self.local.rows('SELECT sequence FROM monitor_nodes')[0][0],1)
 
+    def test_nonce_reuse_with_new_sequence_is_rejected_over_http(self):
+        for sequence,expected in ((1,202),(2,403)):
+            beat=replace(self.beat,sequence=sequence)
+            proof=sign(beat,'key-test','fixture-key',self.local.secrets,self.local.clock(),nonce='a'*32)
+            result=self.local.request(beat.encode(),{'Content-Type':'application/json',**proof.headers()})
+            self.assertEqual(result[0],expected)
+        self.assertEqual(self.local.rows('SELECT sequence FROM monitor_nodes')[0][0],1)
+
     def test_unknown_collector(self):
         beat=replace(self.beat,snapshot=snapshot(self.local.clock,'unknown-node'))
         self.assertEqual(self.local.send(beat)[0],403)

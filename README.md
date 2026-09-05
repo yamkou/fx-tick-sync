@@ -22,6 +22,10 @@ Phase 3C のHMAC認証付きHTTP入口、Monitor自己監視、通知・復旧�
 `monitor_server.py --config configs/production-monitor.example.json --check` は設定検証のみです。
 本番起動には承認済みSecret、WSGI環境、TLS proxy、boot/sequence運用の準備が必要です。
 
+Phase 3D のオフライン検証結果・不足依存・後日の専用venv構築コマンド・実機チェックリストは
+[docs/PHASE3D_READINESS.md](docs/PHASE3D_READINESS.md)、配置テンプレートと導入手順は
+[deployment/README.md](deployment/README.md) を参照してください。オフライン検証完了は本番稼働の承認ではありません。
+
 ```
 .github/workflows/tick_sync.yml   毎週土曜 07:00 JST に sync_and_upload.py を実行
 fxtick/                           共通モジュール（Google Drive FX 側にも同じものを置く。GitHub 側を正とする）

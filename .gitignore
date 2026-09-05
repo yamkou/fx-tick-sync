@@ -1,0 +1,4 @@
+# Only future local deployment state/secrets; examples remain tracked.
+/deployment/**/runtime/
+/deployment/**/environment.env
+__pycache__/
