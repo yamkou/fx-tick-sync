@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "environment": "staging",
+  "paths": {
+    "data_root": "data", "temp_root": "temp", "log_root": "logs",
+    "export_root": "exports", "provenance_registry": "config/reference-ledger.json"
+  },
+  "collectors": [{
+    "collector_id": "london-01", "location": "london", "source_type": "mt5",
+    "broker": "example-broker", "symbols": ["EURUSD"], "storage_destination": "staging-quarantine"
+  }],
+  "terminals": [{
+    "terminal_id": "icmarkets-01", "collector_id": "london-01", "broker": "example-broker",
+    "path": "terminals/icmarkets-01/terminal64.exe"
+  }],
+  "storage": [{"storage_id": "staging-quarantine", "kind": "local", "zone": "QUARANTINE", "location": "data"}]
+}
