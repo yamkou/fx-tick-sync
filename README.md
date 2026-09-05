@@ -29,6 +29,10 @@ Phase 3D のオフライン検証結果・不足依存・後日の専用venv構�
 Phase 3E では専用 `.venv` で旧SKIP 7件とWaitress localhost統合を検証しました。
 再構築コマンド・固定バージョン・結果は [docs/PHASE3E_ENVIRONMENT.md](docs/PHASE3E_ENVIRONMENT.md) を参照してください。
 
+Phase 4A のMT5×1 staging配置、preflight、bootstrap、secret境界、rollback手順は
+[deployment/windows-staging/README.md](deployment/windows-staging/README.md) を参照してください。
+実Collector起動はプローブ・永続sender統合が完了するまでpreflightでブロックされます。
+
 ```
 .github/workflows/tick_sync.yml   毎週土曜 07:00 JST に sync_and_upload.py を実行
 fxtick/                           共通モジュール（Google Drive FX 側にも同じものを置く。GitHub 側を正とする）
