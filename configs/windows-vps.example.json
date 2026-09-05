@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "environment": "staging",
+  "paths": {
+    "data_root": "runtime/data",
+    "temp_root": "runtime/temp",
+    "log_root": "runtime/logs",
+    "export_root": "runtime/exports",
+    "provenance_registry": "private-config/reference-ledger.json"
+  },
+  "collectors": [
+    {"collector_id": "london-01", "location": "london", "source_type": "mt5", "broker": "example-broker-a", "symbols": ["EURUSD", "XAUUSD"], "storage_destination": "candidate-buffer"},
+    {"collector_id": "london-02", "location": "london", "source_type": "mt5", "broker": "example-broker-b", "symbols": ["EURUSD", "XAUUSD"], "storage_destination": "candidate-buffer"}
+  ],
+  "terminals": [
+    {"terminal_id": "broker-a-01", "collector_id": "london-01", "broker": "example-broker-a", "path": "terminals/broker-a-01/terminal64.exe"},
+    {"terminal_id": "broker-a-02", "collector_id": "london-01", "broker": "example-broker-a", "path": "terminals/broker-a-02/terminal64.exe"},
+    {"terminal_id": "broker-a-03", "collector_id": "london-01", "broker": "example-broker-a", "path": "terminals/broker-a-03/terminal64.exe"},
+    {"terminal_id": "broker-a-04", "collector_id": "london-01", "broker": "example-broker-a", "path": "terminals/broker-a-04/terminal64.exe"},
+    {"terminal_id": "broker-a-05", "collector_id": "london-01", "broker": "example-broker-a", "path": "terminals/broker-a-05/terminal64.exe"},
+    {"terminal_id": "broker-b-06", "collector_id": "london-02", "broker": "example-broker-b", "path": "terminals/broker-b-06/terminal64.exe"},
+    {"terminal_id": "broker-b-07", "collector_id": "london-02", "broker": "example-broker-b", "path": "terminals/broker-b-07/terminal64.exe"},
+    {"terminal_id": "broker-b-08", "collector_id": "london-02", "broker": "example-broker-b", "path": "terminals/broker-b-08/terminal64.exe"},
+    {"terminal_id": "broker-b-09", "collector_id": "london-02", "broker": "example-broker-b", "path": "terminals/broker-b-09/terminal64.exe"},
+    {"terminal_id": "broker-b-10", "collector_id": "london-02", "broker": "example-broker-b", "path": "terminals/broker-b-10/terminal64.exe"}
+  ],
+  "storage": [
+    {"storage_id": "candidate-buffer", "kind": "local", "zone": "QUARANTINE", "location": "runtime/data"}
+  ]
+}

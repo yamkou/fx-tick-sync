@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "heartbeat_timeout_seconds": 180,
+  "last_tick_timeout_seconds": 180,
+  "last_write_timeout_seconds": 300,
+  "min_disk_free_bytes": 1073741824,
+  "cooldown_seconds": 300,
+  "recovery_notification": true
+}

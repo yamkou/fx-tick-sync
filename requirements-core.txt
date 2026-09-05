@@ -1,0 +1,5 @@
+# Portable processing only; no MT5/Windows, cloud UI, feed or notification adapters.
+# Kept within the dependency ranges already used by this repository.
+duckdb>=1.1,<2
+pyarrow>=15
+numpy>=1.26
