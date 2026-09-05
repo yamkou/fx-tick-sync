@@ -19,6 +19,10 @@ class HeartbeatAuthenticator(Protocol):
         ...
 
 
+class ReceiverUnavailable(ConfigError):
+    """Infrastructure failure, distinct from a rejected sender."""
+
+
 class HeartbeatInbox:
     """Bounded ingress for listener threads; SQLite remains on its owner thread.
 
@@ -53,7 +57,7 @@ class HeartbeatInbox:
                     except ConfigError:
                         result.set_exception(ConfigError('Heartbeat rejected; details omitted'))
                     except Exception:
-                        result.set_exception(ConfigError('Heartbeat receiver unavailable'))
+                        result.set_exception(ReceiverUnavailable('Heartbeat receiver unavailable'))
                         raise  # Storage/internal failures must be visible to the supervisor.
                     else:
                         result.set_result(accepted)

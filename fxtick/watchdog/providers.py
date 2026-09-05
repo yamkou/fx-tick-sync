@@ -7,6 +7,7 @@ from urllib.request import Request, build_opener, HTTPRedirectHandler, ProxyHand
 
 from ..config import ConfigError, logical_id
 from .monitor import event_dict
+from .messages import format_notification
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -72,7 +73,8 @@ class GenericWebhookProvider:
         self.destination = _Destination(endpoint_reference, token_reference, secrets, poster)
 
     def send(self, event, route):
-        payload = {**event_dict(event), 'route_id': route.route_id, 'channel': route.channel.value}
+        payload = {**event_dict(event), 'route_id': route.route_id, 'channel': route.channel.value,
+                   'message': format_notification(event)}
         return self.destination.post(json.dumps(payload, separators=(',', ':')).encode(), event.event_id)
 
 

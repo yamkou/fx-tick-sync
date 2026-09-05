@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "monitor_config": "external-monitor.example.json",
+  "state_path": "monitor-state.sqlite",
+  "senders": [
+    {
+      "collector_id": "london-01",
+      "keys": [
+        [
+          "key-v1",
+          "london-01-hmac"
+        ]
+      ],
+      "boot_ids": [
+        "boot-example"
+      ]
+    },
+    {
+      "collector_id": "london-02",
+      "keys": [
+        [
+          "key-v1",
+          "london-02-hmac"
+        ]
+      ],
+      "boot_ids": [
+        "boot-example"
+      ]
+    },
+    {
+      "collector_id": "frankfurt-01",
+      "keys": [
+        [
+          "key-v1",
+          "frankfurt-01-hmac"
+        ]
+      ],
+      "boot_ids": [
+        "boot-example"
+      ]
+    }
+  ],
+  "secret_environment": {
+    "london-01-hmac": "FX_LONDON_01_HMAC_V1",
+    "london-02-hmac": "FX_LONDON_02_HMAC_V1",
+    "frankfurt-01-hmac": "FX_FRANKFURT_01_HMAC_V1"
+  },
+  "routes": [
+    {
+      "schema_version": 1,
+      "route_id": "operations-log",
+      "channel": "Push",
+      "provider": "logging",
+      "endpoint_reference": null,
+      "token_reference": null
+    }
+  ],
+  "receiver": {
+    "max_payload_bytes": 65536,
+    "acceptance_timeout_seconds": 5,
+    "allow_loopback_http": true,
+    "burst": 30,
+    "requests_per_minute": 120,
+    "max_clients": 1024
+  },
+  "listen_host": "127.0.0.1",
+  "listen_port": 8765,
+  "evaluation_timeout_seconds": 30,
+  "auth_window_seconds": 90
+}

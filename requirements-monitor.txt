@@ -1,0 +1,3 @@
+# Isolated monitoring backend. Prepare/review the production environment separately.
+# No dependency installation or network access was performed during implementation.
+waitress>=3,<4

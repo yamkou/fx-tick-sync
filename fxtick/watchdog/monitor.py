@@ -10,6 +10,7 @@ from ..collectors.health import HealthSnapshot, utc_time
 from ..collectors.monitoring import Check, IncidentKey, NotificationEvent, Severity
 from .heartbeat import Heartbeat
 from .health import evaluate_health
+from .messages import AlertObservation
 
 LOG = logging.getLogger(__name__)
 
@@ -17,9 +18,12 @@ LOG = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class WatchdogEvent(NotificationEvent):
     first_seen_at: datetime | None = None
+    observation: AlertObservation | None = None
 
     def __post_init__(self):
         super().__post_init__()
+        if self.observation is not None and not isinstance(self.observation,AlertObservation):
+            raise ConfigError('Invalid event observation')
         if self.first_seen_at is not None:
             first = utc_time(self.first_seen_at)
             if first > self.occurred_at or self.outage_seconds != int((self.occurred_at - first).total_seconds()):
@@ -38,14 +42,16 @@ def event_dict(event):
         'occurred_at': event.occurred_at.isoformat(), 'outage_seconds': event.outage_seconds,
         'first_seen_at': (getattr(event, 'first_seen_at', None) or
                           event.occurred_at - timedelta(seconds=event.outage_seconds or 0)).isoformat(),
-        'recovered_at': event.occurred_at.isoformat() if event.severity == Severity.RECOVERY else None}
+        'recovered_at': event.occurred_at.isoformat() if event.severity == Severity.RECOVERY else None,
+        'observation': event.observation.to_dict() if getattr(event,'observation',None) else None}
 
 
 def read_event(raw):
     value = json.loads(raw)
     return WatchdogEvent(value['event_id'], IncidentKey(value['collector_id'], Check(value['check']), value['terminal_id']),
         Severity(value['severity']), datetime.fromisoformat(value['occurred_at']), value['outage_seconds'],
-        datetime.fromisoformat(value['first_seen_at']))
+        datetime.fromisoformat(value['first_seen_at']),
+        AlertObservation.from_dict(value['observation']) if value.get('observation') is not None else None)
 
 
 class ExternalMonitor:
@@ -145,8 +151,17 @@ class ExternalMonitor:
         state['last_seen'] = now.isoformat()
         if emit:
             duration = int((now - datetime.fromisoformat(state['first_seen'])).total_seconds())
+            receipt = self.store.latest(key.collector_id)
+            node = self.nodes[key.collector_id]
+            threshold = ({Check.HEARTBEAT: node.warning_seconds if severity == Severity.WARNING else node.critical_seconds,
+                          Check.LAST_TICK: policy.last_tick_timeout_seconds,Check.LAST_WRITE: policy.last_write_timeout_seconds}).get(key.check)
+            if key.check == Check.HEARTBEAT and receipt is None:
+                threshold = node.startup_grace_seconds
+            observation = AlertObservation(receipt.received_at if receipt else None,
+                receipt.snapshot.last_tick_time if receipt else None,
+                receipt.snapshot.last_successful_write if receipt else None,threshold)
             event = WatchdogEvent('event-' + uuid4().hex, key, severity or Severity.RECOVERY, now, duration,
-                datetime.fromisoformat(state['first_seen']))
+                datetime.fromisoformat(state['first_seen']),observation)
             state['last_event_at'] = now.isoformat()
             state['event_id'] = event.event_id
             state['notification_sent'] = False
