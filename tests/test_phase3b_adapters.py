@@ -145,6 +145,11 @@ class ProviderTests(unittest.TestCase):
         config = load_monitor_config('configs/external-monitor.example.json')
         self.assertEqual(len(config.nodes), 3)
         self.assertEqual(config.monitor_id, 'tokyo-monitor-01')
+        deployment = json.loads(Path('configs/windows-vps.example.json').read_text())
+        expected = {(t['collector_id'], t['terminal_id']) for t in deployment['terminals']}
+        actual = {(n.collector_id, t) for n in config.nodes for t in n.terminal_ids}
+        self.assertEqual(actual, expected)
+        self.assertEqual(len(actual), 10)
 
     def test_monitor_config_rejects_inline_secret_and_wrong_arrays(self):
         raw = json.loads(Path('configs/external-monitor.example.json').read_text())

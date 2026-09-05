@@ -12,6 +12,11 @@ Phase 3A のクロスプラットフォーム設定、Collector/Terminal ID、VP
 `collector_plan.py` は設定を検証するだけで、収集・MT5起動・通知は行いません。
 `local_export.py --config ...` は任意設定です。従来の引数形式も維持しています。
 
+Phase 3B の内部監視、外部heartbeat、SQLite状態保存、通知adapterは
+[docs/PHASE3B_MONITORING.md](docs/PHASE3B_MONITORING.md) を参照してください。
+`python -S -B monitor_demo.py` は外部通信なしの合成障害・復旧デモです。
+実MT5/cTrader接続、公開受信endpoint、LINE実送信はまだ配備していません。
+
 ```
 .github/workflows/tick_sync.yml   毎週土曜 07:00 JST に sync_and_upload.py を実行
 fxtick/                           共通モジュール（Google Drive FX 側にも同じものを置く。GitHub 側を正とする）

@@ -328,6 +328,14 @@ class MonitorTests(unittest.TestCase):
         self.clock.advance(180); self.monitor.run_once()
         self.assertEqual([e.incident.collector_id for e in provider.events], ['london-02'])
 
+    def test_cooldown_starts_again_after_delayed_delivery_success(self):
+        self.provider.fail = True; self.clock.advance(180); self.monitor.run_once()
+        self.clock.advance(900); self.provider.fail = False
+        self.assertEqual(self.monitor.dispatch(), 2)
+        self.assertEqual(self.events(), [])
+        self.clock.advance(299); self.assertEqual(self.events(), [])
+        self.clock.advance(1); self.assertEqual(len(self.events()), 1)
+
 
 class ConfigurationTests(unittest.TestCase):
     def test_unrelated_sqlite_is_not_modified(self):

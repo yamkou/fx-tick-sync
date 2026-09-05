@@ -17,7 +17,13 @@
           10080
         ]
       ],
-      "terminal_ids": [],
+      "terminal_ids": [
+        "broker-a-01",
+        "broker-a-02",
+        "broker-a-03",
+        "broker-a-04",
+        "broker-a-05"
+      ],
       "health": {
         "heartbeat_timeout_seconds": 180,
         "last_tick_timeout_seconds": 180,
@@ -42,7 +48,13 @@
           10080
         ]
       ],
-      "terminal_ids": [],
+      "terminal_ids": [
+        "broker-b-06",
+        "broker-b-07",
+        "broker-b-08",
+        "broker-b-09",
+        "broker-b-10"
+      ],
       "health": {
         "heartbeat_timeout_seconds": 180,
         "last_tick_timeout_seconds": 180,

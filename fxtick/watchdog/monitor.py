@@ -125,12 +125,15 @@ class ExternalMonitor:
         else:
             if not active:
                 state = {'first_seen': now.isoformat(), 'last_event_at': None,
-                         'current_state': severity.value, 'notification_sent': False, 'recovered_at': None}
+                         'current_state': severity.value, 'notification_sent': False, 'recovered_at': None,
+                         'last_notified_at': None}
                 emit = True
             elif state['current_state'] != severity.value:
                 emit = True
             elif state['last_event_at'] is not None:
                 emit = (now - datetime.fromisoformat(state['last_event_at'])).total_seconds() >= policy.cooldown_seconds
+                if state.get('last_notified_at'):
+                    emit = emit and (now - datetime.fromisoformat(state['last_notified_at'])).total_seconds() >= policy.cooldown_seconds
                 # An undelivered reminder is retried with its existing event ID;
                 # do not accumulate another copy every cooldown during outage.
                 if emit and any(read_event(row['event']).event_id == state['event_id'] for row in self.store.pending()):
@@ -208,6 +211,7 @@ class ExternalMonitor:
                     remaining = db.execute('SELECT 1 FROM monitor_outbox WHERE event=? AND delivered=0', (row['event'],)).fetchone()
                     if state and state['event_id'] == event.event_id and not remaining:
                         state['notification_sent'] = True
+                        state['last_notified_at'] = now.isoformat()
                         db.execute('UPDATE monitor_incidents SET state=? WHERE key=?', (json.dumps(state), key))
                 sent += 1
             else:
