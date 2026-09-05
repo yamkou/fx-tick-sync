@@ -134,6 +134,14 @@ class Phase2Tests(unittest.TestCase):
         with self.assertRaises(PermissionError): a.inspect(artifact.path, ledger=artifact.ledger)
         with self.assertRaises(PermissionError): a.inspect(artifact.path).check(DIST)
 
+    def test_legacy_and_new_inputs_can_be_combined_for_local_validation(self):
+        legacy, managed = self.legacy(), self.artifact()
+        with fake_engines():
+            duck = importlib.import_module("fxtick.duck")
+            query = duck.union_sources([legacy.path, managed.path], ledger=legacy.ledger)
+            self.assertTrue(query.check(LOCAL).check(LOCAL).allowed)
+            with self.assertRaises(PermissionError): query.check(DIST)
+
     def test_tampered_bytes_rejected(self):
         artifact = self.artifact()
         artifact.path.write_text("changed")
@@ -196,6 +204,59 @@ class Phase2Tests(unittest.TestCase):
             con = FakeCon()
             with self.assertRaises(PermissionError): mt.export_mt5_ticks(con, "SELECT 1", self.path())
             self.assertEqual(con.sql, [])
+
+    def frame(self):
+        class Frame:
+            empty = False
+            def __init__(self):
+                self.text = "timestamp,bidPrice,askPrice,bidVolume,askVolume\n2026-09-01T00:00:00Z,1,2,1,1\n"
+                self.attrs = {"fxtick_lineage": a.Lineage(a.new_dukascopy()),
+                              "fxtick_sha256": hashlib.sha256(self.text.encode()).hexdigest()}
+            def to_csv(self, dest=None, *, header=True):
+                if dest is None: return self.text
+                dest.write(self.text if header else self.text.split("\n", 1)[1])
+            def __len__(self): return 1
+        return Frame()
+
+    def test_acquisition_csv_chunks_preserve_both_parents(self):
+        with fake_engines():
+            fetcher = importlib.import_module("fxtick.fetcher")
+            first, second, target = self.frame(), self.frame(), self.path()
+            fetcher.append_csv(first, target)
+            initial = a.inspect(target)
+            fetcher.append_csv(second, target)
+            artifact = a.inspect(target)
+            self.assertTrue(artifact.check(LOCAL).allowed)
+            self.assertEqual(set(artifact.lineage.root.derived_from),
+                {initial.lineage.root.dataset_id, second.attrs["fxtick_lineage"].root.dataset_id})
+            with self.assertRaises(PermissionError): artifact.check(DIST)
+
+    def test_acquisition_unmarked_or_mutated_frame_does_not_create_csv(self):
+        with fake_engines():
+            fetcher = importlib.import_module("fxtick.fetcher")
+            for missing in (True, False):
+                frame, target = self.frame(), self.path()
+                if missing: frame.attrs.clear()
+                else: frame.text += "changed"
+                with self.assertRaises(PermissionError): fetcher.append_csv(frame, target)
+                self.assertFalse(target.exists())
+
+    def test_acquisition_never_appends_to_unregistered_history(self):
+        with fake_engines():
+            fetcher = importlib.import_module("fxtick.fetcher")
+            target = self.path(); target.write_bytes(b"existing history")
+            with self.assertRaises(PermissionError): fetcher.append_csv(self.frame(), target)
+            self.assertEqual(target.read_bytes(), b"existing history")
+
+    def test_acquisition_range_rejects_existing_path_before_fetch(self):
+        with fake_engines():
+            fetcher = importlib.import_module("fxtick.fetcher")
+            target = self.path(); target.write_bytes(b"existing history")
+            now = datetime.now(timezone.utc)
+            with patch.object(fetcher, "fetch_ticks") as fetch:
+                with self.assertRaises(FileExistsError): fetcher.download_range_to_csv("TEST", now, now, target)
+                fetch.assert_not_called()
+            self.assertEqual(target.read_bytes(), b"existing history")
 
     def test_mt4_mt5_local_conversion_and_inherited_distribution_denial(self):
         with fake_engines():
@@ -425,6 +486,15 @@ class Phase2Tests(unittest.TestCase):
         with patch.object(gdrive, "_download_raw", side_effect=changing):
             with self.assertRaises(PermissionError): gdrive.share_anyone_reader(service, "file", roots=self.roots)
         self.assertEqual(service.writes, [])
+
+    def test_public_share_allows_only_verified_approved_remote(self):
+        service, download = self.remote(self.approved())
+        service.nodes["file"]["webContentLink"] = "https://example.invalid/synthetic-download"
+        with patch.object(gdrive, "_download_raw", side_effect=download):
+            self.assertEqual(gdrive.share_anyone_reader(service, "file", roots=self.roots),
+                             "https://example.invalid/synthetic-download")
+        self.assertEqual(len(service.writes), 1)
+        self.assertEqual(service.writes[0][0], "permissions")
 
     def test_listing_filters_blocked_content(self):
         service, download = self.remote(self.artifact())

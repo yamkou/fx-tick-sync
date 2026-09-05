@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
@@ -108,13 +108,17 @@ def derive(lineages):
             records[node.dataset_id] = node
     if not roots:
         raise IntegrityError("No inputs")
-    order = [LicenseClass.DISTRIBUTABLE, LicenseClass.INTERNAL_ONLY,
-             LicenseClass.PRIVATE_REFERENCE, LicenseClass.UNKNOWN]
-    strictest = max((n.license_class for n in records.values()), key=order.index)
     root = Provenance(str(uuid4()), source="derived", provider="fxtick",
-        license_class=strictest, redistributable=all(n.redistributable for n in records.values()),
+        license_class=LicenseClass.DISTRIBUTABLE, redistributable=True,
         acquired_at=datetime.now(timezone.utc), derived_from=tuple(dict.fromkeys(roots)),
         acquisition_mechanism="transformation")
+    # Reuse Phase 1's ordering and graph evaluation, including source restrictions.
+    # The provisional positive metadata claim never itself grants permission.
+    from . import trusted_config
+    decision = evaluate_policy(root, ExportPurpose.DISTRIBUTION,
+                               parents=records, source_policies=trusted_config.SOURCE_POLICIES)
+    root = replace(root, license_class=decision.effective_license_class,
+                   redistributable=decision.allowed)
     return Lineage(root, tuple(records.values()))
 
 
@@ -170,9 +174,16 @@ def inspect(path, *, ledger=None):
             raise IntegrityError("Parquet/sidecar lineage mismatch")
         # An explicit legacy record can never be superseded by a sidecar.
         if ledger is not None:
-            legacy = _legacy(path, digest, size, ledger)
-            if legacy.lineage != lineage:
-                raise IntegrityError("Legacy ledger/sidecar disagreement")
+            registry = parse(Path(ledger).read_text(encoding="utf-8"))
+            _validate_ledger(registry)
+            if str(path) in registry["files"]:
+                legacy = _legacy(path, digest, size, ledger)
+                if legacy.lineage != lineage:
+                    raise IntegrityError("Legacy ledger/sidecar disagreement")
+            else:
+                # A ledger may accompany a selection of legacy AND new managed
+                # inputs. New managed inputs use their own verified manifests.
+                ledger = None
         return Artifact(path, lineage, digest, size, Path(ledger).resolve() if ledger else None)
     if ledger is not None:
         return _legacy(path, digest, size, ledger)
