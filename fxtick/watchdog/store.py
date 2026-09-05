@@ -7,6 +7,7 @@ import json
 import sqlite3
 from datetime import datetime
 from contextlib import contextmanager
+from pathlib import Path
 
 from ..collectors.health import HeartbeatReceipt
 from ..config import ConfigError
@@ -17,6 +18,19 @@ class SQLiteState:
     def __init__(self, path):
         self.connection = sqlite3.connect(path)
         self.connection.row_factory = sqlite3.Row
+        try:
+            self.check()
+            self._initialize()
+        except (sqlite3.Error, ConfigError):
+            self.connection.close()
+            raise ConfigError('Monitor database unavailable or incompatible; no automatic reset') from None
+
+    def check(self):
+        if self.connection.execute('PRAGMA quick_check').fetchone()[0] != 'ok':
+            raise ConfigError('Monitor database integrity check failed')
+        return True
+
+    def _initialize(self):
         tables = {r[0] for r in self.connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")}
         expected = {'monitor_meta', 'monitor_nodes', 'monitor_boots', 'monitor_incidents', 'monitor_outbox'}
         application_id = self.connection.execute('PRAGMA application_id').fetchone()[0]
@@ -52,6 +66,24 @@ class SQLiteState:
 
     def close(self):
         self.connection.close()
+
+    def backup_to(self, path):
+        """SQLite online backup to a NEW path only; run on the connection owner.
+
+        A failed backup may leave its newly created destination incomplete. Never
+        restore it unless a separate integrity check succeeds. Existing files are
+        never replaced and corrupt source state is never reset.
+        """
+        self.check()
+        with Path(path).open('xb'):
+            pass
+        target = sqlite3.connect(path)
+        try:
+            self.connection.backup(target)
+            if target.execute('PRAGMA quick_check').fetchone()[0] != 'ok':
+                raise ConfigError('Monitor backup integrity check failed')
+        finally:
+            target.close()
 
     def node(self, collector_id):
         return self.connection.execute('SELECT * FROM monitor_nodes WHERE id=?', (collector_id,)).fetchone()

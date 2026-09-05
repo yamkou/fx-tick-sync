@@ -103,6 +103,9 @@ class ExternalMonitor:
                 old = Heartbeat.decode(previous['payload'].encode())
                 if heartbeat.snapshot.observed_at < old.snapshot.observed_at:
                     raise ConfigError('Heartbeat observation moved backwards')
+            commit_proof = getattr(self.authenticator, 'commit_proof', None)
+            if commit_proof is not None:
+                commit_proof(db, node.collector_id, heartbeat.boot_id, payload, proof, now)
             db.execute('INSERT OR IGNORE INTO monitor_boots VALUES (?,?)', (node.collector_id, heartbeat.boot_id))
             db.execute('UPDATE monitor_nodes SET receipt=?,payload=?,boot=?,sequence=? WHERE id=?',
                 (now.isoformat(), payload.decode('utf-8'), heartbeat.boot_id, heartbeat.sequence, node.collector_id))
