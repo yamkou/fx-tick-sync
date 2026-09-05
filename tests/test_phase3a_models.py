@@ -16,7 +16,7 @@ from fxtick.config import ConfigError, Collector, Environment, SourceType, load_
 from fxtick.collectors.identity import AcquisitionRecord
 from fxtick.collectors.health import HealthSnapshot, HeartbeatReceipt, TerminalHealth
 from fxtick.collectors.monitoring import (Channel, Check, IncidentKey, IncidentState,
-    MonitoringPolicy, NotificationEvent, NotificationRoute, Severity)
+    MonitoringPolicy, NotificationEvent, NotificationRoute, Severity, NotificationDeliveryState)
 from fxtick.policy import ExportPurpose
 
 NOW = datetime(2026, 9, 6, tzinfo=timezone.utc)
@@ -249,6 +249,17 @@ class MonitoringTests(unittest.TestCase):
         event = NotificationEvent("event-one", IncidentKey("london-01", Check.HEARTBEAT), Severity.CRITICAL, NOW)
         self.assertTrue(provider.send(event, NotificationRoute("operations", Channel.LINE)))
         self.assertEqual(len(provider.events), 1)
+
+    def test_delivery_cooldown_state_is_separate_per_route(self):
+        key = IncidentKey("london-01", Check.HEARTBEAT)
+        line = NotificationDeliveryState(key, "operations-line", "event-one", NOW)
+        email = NotificationDeliveryState(key, "operations-email")
+        self.assertNotEqual(line.route_id, email.route_id)
+        self.assertIsNone(email.last_successful_send_at)
+
+    def test_delivery_success_needs_event_and_timestamp(self):
+        key = IncidentKey("london-01", Check.HEARTBEAT)
+        with self.assertRaises(ConfigError): NotificationDeliveryState(key, "operations", "event-one")
 
 
 class PlatformTests(unittest.TestCase):

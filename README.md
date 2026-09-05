@@ -7,6 +7,11 @@ Phase 2 の設定、旧履歴の明示登録、LOCAL_TEST 手順、配布境界�
 [docs/PHASE2_BOUNDARIES.md](docs/PHASE2_BOUNDARIES.md) を参照してください。
 Dukascopy は PRIVATE_REFERENCE / LOCAL_TEST 専用です。UNKNOWN は両用途で拒否します。
 
+Phase 3A のクロスプラットフォーム設定、Collector/Terminal ID、VPS移管手順、
+外部監視・通知の契約は [docs/PHASE3A_FOUNDATION.md](docs/PHASE3A_FOUNDATION.md) にあります。
+`collector_plan.py` は設定を検証するだけで、収集・MT5起動・通知は行いません。
+`local_export.py --config ...` は任意設定です。従来の引数形式も維持しています。
+
 ```
 .github/workflows/tick_sync.yml   毎週土曜 07:00 JST に sync_and_upload.py を実行
 fxtick/                           共通モジュール（Google Drive FX 側にも同じものを置く。GitHub 側を正とする）

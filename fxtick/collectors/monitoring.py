@@ -130,6 +130,30 @@ class NotificationProvider(Protocol):
         ...
 
 
+@dataclass(frozen=True)
+class NotificationDeliveryState:
+    """Per-route cooldown/idempotency: LINE success cannot suppress failed email."""
+    incident: IncidentKey
+    route_id: str
+    last_event_id: str | None = None
+    last_successful_send_at: datetime | None = None
+
+    def __post_init__(self):
+        if not isinstance(self.incident, IncidentKey):
+            raise ConfigError("Invalid delivery incident")
+        logical_id(self.route_id)
+        if (self.last_event_id is None) != (self.last_successful_send_at is None):
+            raise ConfigError("Successful delivery needs both event ID and timestamp")
+        if self.last_event_id is not None:
+            logical_id(self.last_event_id)
+        object.__setattr__(self, "last_successful_send_at", utc_time(self.last_successful_send_at, optional=True))
+
+
+class NotificationDeliveryStore(Protocol):
+    def load(self, incident: IncidentKey, route_id: str) -> NotificationDeliveryState | None: ...
+    def save(self, state: NotificationDeliveryState) -> None: ...
+
+
 class HeartbeatStore(Protocol):
     def latest(self, collector_id: str):
         """Return latest authenticated receipt or None; independent of collector host."""
