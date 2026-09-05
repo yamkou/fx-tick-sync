@@ -1,0 +1,72 @@
+{
+  "kind": "offline-synthetic-short-load",
+  "python": "3.12.14",
+  "os": "Windows",
+  "memory_metric": "tracemalloc Python allocations, not total process RSS",
+  "transport": "direct authenticated receiver (actual loopback HTTP is tested separately)",
+  "results": [
+    {
+      "collectors": 10,
+      "authenticated_heartbeats": 40,
+      "critical_events": 10,
+      "recovery_events": 10,
+      "notification_deliveries": 20,
+      "peak_pending_queue": 10,
+      "pending_after_dispatch": 0,
+      "restart_restored_nodes": 10,
+      "wall_seconds": 0.754622,
+      "cpu_seconds": 0.046875,
+      "healthy_heartbeat_batch_seconds": 0.269931,
+      "python_heap_after_healthy_cycles_bytes": [
+        51128,
+        54327,
+        54346
+      ],
+      "python_heap_current_bytes": 117635,
+      "python_heap_peak_bytes": 130940,
+      "sqlite_bytes": 86016
+    },
+    {
+      "collectors": 20,
+      "authenticated_heartbeats": 80,
+      "critical_events": 20,
+      "recovery_events": 20,
+      "notification_deliveries": 40,
+      "peak_pending_queue": 20,
+      "pending_after_dispatch": 0,
+      "restart_restored_nodes": 20,
+      "wall_seconds": 1.394717,
+      "cpu_seconds": 0.265625,
+      "healthy_heartbeat_batch_seconds": 0.520006,
+      "python_heap_after_healthy_cycles_bytes": [
+        36261,
+        36475,
+        33148
+      ],
+      "python_heap_current_bytes": 121431,
+      "python_heap_peak_bytes": 145634,
+      "sqlite_bytes": 126976
+    },
+    {
+      "collectors": 50,
+      "authenticated_heartbeats": 200,
+      "critical_events": 50,
+      "recovery_events": 50,
+      "notification_deliveries": 100,
+      "peak_pending_queue": 50,
+      "pending_after_dispatch": 0,
+      "restart_restored_nodes": 50,
+      "wall_seconds": 3.512075,
+      "cpu_seconds": 0.578125,
+      "healthy_heartbeat_batch_seconds": 1.434304,
+      "python_heap_after_healthy_cycles_bytes": [
+        44455,
+        52199,
+        54401
+      ],
+      "python_heap_current_bytes": 231971,
+      "python_heap_peak_bytes": 268699,
+      "sqlite_bytes": 245760
+    }
+  ]
+}
