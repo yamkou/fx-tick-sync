@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "profile": "collector",
+  "low_resource_mode": true,
+  "sampling_interval_seconds": 30,
+  "memory_warning_bytes": 3221225472,
+  "memory_critical_bytes": 1610612736,
+  "startup_delay_seconds": 10,
+  "startup_settle_seconds": 60,
+  "max_buffer_bytes": 16777216,
+  "max_batch_records": 10000,
+  "log_max_bytes": 5242880,
+  "log_backups": 5,
+  "growth_windows_seconds": [3600, 21600, 86400, 604800]
+}

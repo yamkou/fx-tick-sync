@@ -26,7 +26,8 @@ ROOT = Path(__file__).resolve().parents[1]
 class CollectorTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        # TEMP may use an 8.3 alias; runtime paths intentionally resolve it.
+        self.root = Path(self.temp.name).resolve()
         path = self.root / "synthetic.csv"; path.write_bytes(b"synthetic")
         self.artifact = a.seal(path, a.Lineage(a.new_dukascopy()))
         self.collector = Collector("london-01", "london", SourceType.DUKASCOPY, "dukascopy", ("XAUUSD",), "private-buffer")
