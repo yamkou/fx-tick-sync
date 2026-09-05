@@ -26,6 +26,9 @@ Phase 3D のオフライン検証結果・不足依存・後日の専用venv構�
 [docs/PHASE3D_READINESS.md](docs/PHASE3D_READINESS.md)、配置テンプレートと導入手順は
 [deployment/README.md](deployment/README.md) を参照してください。オフライン検証完了は本番稼働の承認ではありません。
 
+Phase 3E では専用 `.venv` で旧SKIP 7件とWaitress localhost統合を検証しました。
+再構築コマンド・固定バージョン・結果は [docs/PHASE3E_ENVIRONMENT.md](docs/PHASE3E_ENVIRONMENT.md) を参照してください。
+
 ```
 .github/workflows/tick_sync.yml   毎週土曜 07:00 JST に sync_and_upload.py を実行
 fxtick/                           共通モジュール（Google Drive FX 側にも同じものを置く。GitHub 側を正とする）
