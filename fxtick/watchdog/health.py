@@ -1,5 +1,8 @@
 """Internal watchdog evaluation shared with the independent external monitor."""
 from typing import Protocol
+import os
+from pathlib import Path
+import shutil
 from ..config import ConfigError
 from ..collectors.health import HealthSnapshot, utc_time
 from ..collectors.monitoring import Check, IncidentKey, Severity
@@ -19,6 +22,21 @@ class RecoveryAction(Protocol):
     def execute(self, incident: IncidentKey) -> bool:
         """Future separately authorized restart adapter; monitor never invokes it."""
         ...
+
+
+def probe_disk(path):
+    """Read-only advisory access/free-space probe; successful writes stay separate.
+
+    os.access is not proof that a later write will succeed (ACLs, quotas, races).
+    Never create a test file in a market-data directory just to measure health.
+    """
+    path = Path(path)
+    try:
+        if not path.is_dir() or not os.access(path, os.R_OK | os.W_OK | os.X_OK):
+            return False, None
+        return True, shutil.disk_usage(path).free
+    except OSError:
+        return False, None
 
 
 def evaluate_health(snapshot, policy, now, schedule=None):

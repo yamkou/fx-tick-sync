@@ -1,5 +1,6 @@
 """Independent receiver and state machine; deterministic clock injection."""
 from datetime import datetime, timedelta
+from dataclasses import dataclass
 import json
 import logging
 from uuid import uuid4
@@ -13,6 +14,19 @@ from .health import evaluate_health
 LOG = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class WatchdogEvent(NotificationEvent):
+    first_seen_at: datetime | None = None
+
+    def __post_init__(self):
+        super().__post_init__()
+        if self.first_seen_at is not None:
+            first = utc_time(self.first_seen_at)
+            if first > self.occurred_at or self.outage_seconds != int((self.occurred_at - first).total_seconds()):
+                raise ConfigError('Invalid event chronology')
+            object.__setattr__(self, 'first_seen_at', first)
+
+
 def key_text(key):
     return json.dumps([key.collector_id, key.check.value, key.terminal_id])
 
@@ -22,18 +36,20 @@ def event_dict(event):
         'collector_id': event.incident.collector_id, 'check': event.incident.check.value,
         'terminal_id': event.incident.terminal_id, 'severity': event.severity.value,
         'occurred_at': event.occurred_at.isoformat(), 'outage_seconds': event.outage_seconds,
-        'first_seen_at': (event.occurred_at - timedelta(seconds=event.outage_seconds or 0)).isoformat(),
+        'first_seen_at': (getattr(event, 'first_seen_at', None) or
+                          event.occurred_at - timedelta(seconds=event.outage_seconds or 0)).isoformat(),
         'recovered_at': event.occurred_at.isoformat() if event.severity == Severity.RECOVERY else None}
 
 
 def read_event(raw):
     value = json.loads(raw)
-    return NotificationEvent(value['event_id'], IncidentKey(value['collector_id'], Check(value['check']), value['terminal_id']),
-        Severity(value['severity']), datetime.fromisoformat(value['occurred_at']), value['outage_seconds'])
+    return WatchdogEvent(value['event_id'], IncidentKey(value['collector_id'], Check(value['check']), value['terminal_id']),
+        Severity(value['severity']), datetime.fromisoformat(value['occurred_at']), value['outage_seconds'],
+        datetime.fromisoformat(value['first_seen_at']))
 
 
 class ExternalMonitor:
-    def __init__(self, config, store, authenticator, clock, routes=(), schedule=None):
+    def __init__(self, config, store, authenticator, clock, routes=(), schedule=None, inbox=None):
         self.config, self.store, self.authenticator, self.clock = config, store, authenticator, clock
         self.nodes = {n.collector_id: n for n in config.nodes}
         route_pairs = tuple(routes)
@@ -41,6 +57,7 @@ class ExternalMonitor:
             raise ConfigError('Duplicate notification route ID')
         self.routes = dict(route_pairs)  # (NotificationRoute, provider) iterable
         self.schedule = schedule
+        self.inbox = inbox
         now = utc_time(clock())
         with store.transaction() as db:
             row = db.execute("SELECT value FROM monitor_meta WHERE key='monitor-id'").fetchone()
@@ -122,7 +139,8 @@ class ExternalMonitor:
         state['last_seen'] = now.isoformat()
         if emit:
             duration = int((now - datetime.fromisoformat(state['first_seen'])).total_seconds())
-            event = NotificationEvent('event-' + uuid4().hex, key, severity or Severity.RECOVERY, now, duration)
+            event = WatchdogEvent('event-' + uuid4().hex, key, severity or Severity.RECOVERY, now, duration,
+                datetime.fromisoformat(state['first_seen']))
             state['last_event_at'] = now.isoformat()
             state['event_id'] = event.event_id
             state['notification_sent'] = False
@@ -167,16 +185,17 @@ class ExternalMonitor:
         sent = 0
         for row in self.store.pending():
             route_id = row['route']
-            if route_id in blocked or route_id not in providers:
+            event = read_event(row['event'])
+            delivery_key = (route_id, key_text(event.incident))
+            if delivery_key in blocked or route_id not in providers:
                 continue
             if row['last_attempt'] and (now - datetime.fromisoformat(row['last_attempt'])).total_seconds() < self.config.retry_seconds:
-                blocked.add(route_id)
+                blocked.add(delivery_key)
                 continue
             route, provider = providers[route_id]
             with self.store.transaction() as db:
                 self._clock(db, now)
                 db.execute('UPDATE monitor_outbox SET last_attempt=? WHERE number=?', (now.isoformat(), row['number']))
-            event = read_event(row['event'])
             try:
                 success = provider.send(event, route) is True
             except Exception:
@@ -192,11 +211,21 @@ class ExternalMonitor:
                         db.execute('UPDATE monitor_incidents SET state=? WHERE key=?', (json.dumps(state), key))
                 sent += 1
             else:
-                blocked.add(route_id)
+                blocked.add(delivery_key)
                 LOG.warning('Notification delivery failed; details omitted')
         return sent
 
     def run_once(self):
+        if self.inbox is not None:
+            self.inbox.drain(self.receive)
         events = self.evaluate()
         self.dispatch()
         return events
+
+    def run(self, stop, poll_seconds=1):
+        """External-host loop. Caller supplies authenticated ingress separately."""
+        if type(poll_seconds) not in (int, float) or not 0 < poll_seconds <= 60:
+            raise ConfigError('Invalid monitor poll interval')
+        while not stop.is_set():
+            self.run_once()
+            stop.wait(poll_seconds)

@@ -273,8 +273,72 @@ class MonitorTests(unittest.TestCase):
             ExternalMonitor(self.config, self.store, FakeAuth(), self.clock,
                 [(self.route, self.provider), (self.route, self.provider)])
 
+    def test_fractional_recovery_preserves_exact_first_seen(self):
+        self.clock.advance(180.123); start = self.clock(); self.monitor.evaluate()
+        self.clock.advance(1.234); self.receive()
+        event = self.events()[0]
+        self.assertEqual(event.first_seen_at, start)
+        self.assertEqual(event.outage_seconds, 1)
+
+    def test_phase3a_receipt_contract(self):
+        self.assertIsNone(self.store.latest('london-01'))
+        self.receive()
+        receipt = self.store.latest('london-01')
+        self.assertEqual(receipt.monitor_id, 'tokyo-monitor-01')
+        self.assertEqual(receipt.received_at, NOW)
+        self.assertEqual(receipt.snapshot.collector_id, 'london-01')
+
+    def test_recovery_event_exists_even_when_routing_disabled(self):
+        node = NodePolicy('london-01', health=MonitoringPolicy(recovery_notification=False))
+        self.config = MonitorConfig('tokyo-monitor-01', (node,)); self.monitor = self.make_monitor()
+        self.clock.advance(180); self.events(); self.receive()
+        self.assertEqual(self.events()[0].severity, Severity.RECOVERY)
+        self.assertNotIn(Severity.RECOVERY, [e.severity for e in self.provider.events])
+
+    def test_heartbeat_utf16_is_rejected(self):
+        raw = Heartbeat(healthy(), 'boot-one', 1).encode().decode().encode('utf-16')
+        with self.assertRaises(ConfigError): self.monitor.receive(raw, 'test-proof')
+
+    def test_observation_regression_does_not_update_state(self):
+        self.receive(); self.clock.advance(1)
+        with self.assertRaises(ConfigError): self.receive(snapshot=healthy(NOW-timedelta(seconds=1)))
+        self.assertEqual(self.store.latest('london-01').received_at, NOW)
+
+    def test_unregistered_terminal_is_rejected(self):
+        with self.assertRaises(ConfigError): self.receive(snapshot=healthy(terminals=(TerminalHealth('unknown-terminal', True),)))
+        self.assertIsNone(self.store.latest('london-01'))
+
+    def test_suspended_check_does_not_send_recovery(self):
+        self.receive(snapshot=healthy(disk_path_accessible=False)); self.events(Check.DISK)
+        self.clock.advance(180)
+        self.assertEqual(self.events(Check.DISK), [])
+
+    def test_new_outage_has_new_start(self):
+        self.clock.advance(180); self.events(); self.receive(); self.events()
+        self.clock.advance(180); events = self.events()
+        self.assertEqual(events[0].first_seen_at, self.clock())
+        self.assertEqual(events[0].outage_seconds, 0)
+
+    def test_one_incident_failure_does_not_block_other_collector(self):
+        class Selective(FakeProvider):
+            def send(self, event, route):
+                if event.incident.collector_id == 'london-01': return False
+                return super().send(event, route)
+        provider = Selective(); self.monitor.routes[self.route] = provider
+        self.clock.advance(180); self.monitor.run_once()
+        self.assertEqual([e.incident.collector_id for e in provider.events], ['london-02'])
+
 
 class ConfigurationTests(unittest.TestCase):
+    def test_unrelated_sqlite_is_not_modified(self):
+        import sqlite3
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root)/'unrelated.sqlite'
+            db = sqlite3.connect(path); db.execute('CREATE TABLE history(value TEXT)'); db.commit(); db.close()
+            before = path.read_bytes()
+            with self.assertRaises(ConfigError): SQLiteState(str(path))
+            self.assertEqual(path.read_bytes(), before)
+
     def test_invalid_thresholds(self):
         with self.assertRaises(ConfigError): NodePolicy('london-01', warning_seconds=180)
 

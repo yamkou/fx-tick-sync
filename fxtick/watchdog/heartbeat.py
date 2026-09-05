@@ -1,6 +1,8 @@
 """Validated heartbeat envelope. Authentication proof travels out of band."""
 from dataclasses import dataclass
 import json
+from concurrent.futures import Future
+from queue import Queue, Empty, Full
 from typing import Protocol
 
 from ..config import ConfigError, logical_id
@@ -15,6 +17,48 @@ class HeartbeatAuthenticator(Protocol):
         self-selected boot ID. No permissive default implementation exists.
         """
         ...
+
+
+class HeartbeatInbox:
+    """Bounded ingress for listener threads; SQLite remains on its owner thread.
+
+    The future is acknowledged only after authentication and durable receipt.
+    An HTTP adapter must await it, not report acceptance just because queued.
+    """
+    def __init__(self, capacity=256):
+        if type(capacity) is not int or not 0 < capacity <= 4096:
+            raise ConfigError('Invalid ingress capacity')
+        self.queue = Queue(maxsize=capacity)
+
+    def submit(self, payload, proof=None):
+        if not isinstance(payload, bytes) or not 0 < len(payload) <= 65536:
+            raise ConfigError('Invalid heartbeat envelope size')
+        result = Future()
+        try:
+            self.queue.put_nowait((payload, proof, result))
+        except Full:
+            raise ConfigError('Heartbeat ingress capacity reached') from None
+        return result
+
+    def drain(self, receiver, limit=100):
+        for _ in range(limit):
+            try:
+                payload, proof, result = self.queue.get_nowait()
+            except Empty:
+                break
+            try:
+                if result.set_running_or_notify_cancel():
+                    try:
+                        accepted = receiver(payload, proof)
+                    except ConfigError:
+                        result.set_exception(ConfigError('Heartbeat rejected; details omitted'))
+                    except Exception:
+                        result.set_exception(ConfigError('Heartbeat receiver unavailable'))
+                        raise  # Storage/internal failures must be visible to the supervisor.
+                    else:
+                        result.set_result(accepted)
+            finally:
+                self.queue.task_done()
 
 
 def summary(snapshot):
@@ -55,7 +99,7 @@ class Heartbeat:
         try:
             if not isinstance(payload, bytes) or not 0 < len(payload) <= 65536:
                 raise ValueError()
-            raw = json.loads(payload, object_pairs_hook=unique)
+            raw = json.loads(payload.decode('utf-8'), object_pairs_hook=unique)
             if not isinstance(raw, dict) or set(raw) != {'schema_version', 'boot_id', 'sequence', 'status', 'health'}:
                 raise ValueError()
             if type(raw['schema_version']) is not int or raw['schema_version'] != 1:
