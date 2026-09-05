@@ -19,6 +19,7 @@ import duckdb
 import numpy as np
 
 from .duck import normalized_select, sql_str
+from .export_service import guarded_conversion
 
 TZ_MODES = ("broker", "utc", "jst")
 
@@ -58,6 +59,7 @@ def _ticks_cte(source_select: str, tz_mode: str, digits: int) -> str:
     )
 
 
+@guarded_conversion
 def export_mt5_ticks(con: duckdb.DuckDBPyConnection, source_select: str, out_path: str | os.PathLike,
                      tz_mode: str = "broker", digits: int | None = None) -> None:
     """MT5「銘柄 > カスタム > ティックをインポート」形式（タブ区切り、ミリ秒）。"""
@@ -79,6 +81,7 @@ def export_mt5_ticks(con: duckdb.DuckDBPyConnection, source_select: str, out_pat
     """)
 
 
+@guarded_conversion
 def export_mt4_ticks(con: duckdb.DuckDBPyConnection, source_select: str, out_path: str | os.PathLike,
                      tz_mode: str = "broker", digits: int | None = None) -> None:
     """汎用ティック CSV（Tickstory / CSV2FXT 系ツール向け）: `yyyy.mm.dd HH:MM:SS.fff,bid,ask,volume`"""
@@ -123,6 +126,7 @@ assert struct.calcsize(_HST_HEADER_FMT) == 148
 assert _HST_RECORD_DTYPE.itemsize == 60
 
 
+@guarded_conversion
 def export_hst(con: duckdb.DuckDBPyConnection, source_select: str, out_path: str | os.PathLike,
                symbol: str, period_min: int, digits: int, tz_mode: str = "broker") -> int:
     """ティックを period_min 分足に集約して HST(401) を書き出す。バー数を返す。

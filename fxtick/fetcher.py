@@ -15,6 +15,10 @@ from typing import Callable, Iterator
 import dukascopy_python
 import pandas as pd
 from dateutil.relativedelta import relativedelta
+import hashlib
+
+from .artifacts import Lineage, IntegrityError, new_dukascopy, inspect, derive, seal, sidecar
+from .policy import ExportPurpose
 
 log = logging.getLogger(__name__)
 
@@ -69,7 +73,10 @@ def fetch_ticks(
             df.index = idx
             df.index.name = "timestamp"
             # ライブラリは end と同時刻のティックを含めるので end 排他に揃える
-            return df[(df.index >= start) & (df.index < end)]
+            result = df[(df.index >= start) & (df.index < end)].copy()
+            result.attrs["fxtick_lineage"] = Lineage(new_dukascopy())
+            result.attrs["fxtick_sha256"] = hashlib.sha256(result.to_csv().encode()).hexdigest()
+            return result
         except Exception as e:  # ネットワーク・JSON パース等
             last_err = e
             log.warning("fetch 失敗 (%s/%s) %s %s→%s: %s", attempt, retries, instrument, start, end, e)
@@ -89,11 +96,25 @@ def append_csv(df: pd.DataFrame, path: str | os.PathLike) -> None:
     """CSV へ追記（初回のみヘッダ）。書き込み後 fsync。"""
     if df.empty:
         return
+    lineage = df.attrs.get("fxtick_lineage")
+    if not isinstance(lineage, Lineage) or df.attrs.get("fxtick_sha256") != hashlib.sha256(df.to_csv().encode()).hexdigest():
+        raise IntegrityError("Acquisition frame has missing or changed provenance/content")
+    lineage.check(ExportPurpose.LOCAL_TEST)
     has_data = os.path.exists(path) and os.path.getsize(path) > 0
-    with open(path, "a", newline="", encoding="utf-8") as f:
+    if os.path.exists(path) and not has_data:
+        raise FileExistsError("Refusing to modify an existing empty file")
+    if has_data:
+        previous = inspect(path)
+        previous.check(ExportPurpose.LOCAL_TEST)
+        lineage = derive((previous.lineage, lineage))
+    with open(path, "a" if has_data else "x", newline="", encoding="utf-8") as f:
         df.to_csv(f, header=not has_data)
         f.flush()
         os.fsync(f.fileno())
+    # Interrupted append leaves a hash mismatch, never a permissive stale record.
+    if has_data:
+        sidecar(path).unlink()
+    seal(path, lineage)
 
 
 def download_range_to_csv(
@@ -107,9 +128,11 @@ def download_range_to_csv(
     """[start, end) を月ごとに取得して CSV へ追記。取得ティック総数を返す。
 
     途中でチャンクが失敗した場合は、そこまでの追記を残したまま例外を送出する
-    （次回は CSV の最終時刻から再開できる）。
+    （再開は最終時刻を明示し、別の新規 CSV へ取得する。既存 CSV は変更しない）。
     """
     start, end = ensure_utc(start, "start"), ensure_utc(end, "end")
+    if os.path.exists(csv_path) or sidecar(csv_path).exists():
+        raise FileExistsError("Acquisition requires a new CSV; preserve existing history")
     say = progress or (lambda s: None)
     total = 0
     for c_start, c_end in iter_chunks(start, end):

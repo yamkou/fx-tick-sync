@@ -1,7 +1,7 @@
 
-"""Streamlit Community Cloud 用: Drive 上の Parquet を MT4/MT5 形式に変換して ZIP ダウンロード。
+"""Streamlit distribution UI: only content-attested, policy-approved Drive data.
 
-st.secrets に GDRIVE_FOLDER_ID / GDRIVE_TOKEN_JSON / APP_PASSWORD を設定する。
+st.secrets に別々の private-reference / distribution root と token/password を設定する。
 APP_PASSWORD 未設定時はフェイルクローズ（旧版の既定 "secret123" は廃止）。
 """
 from __future__ import annotations
@@ -10,7 +10,6 @@ import hmac
 import os
 import re
 import tempfile
-import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -18,17 +17,21 @@ import streamlit as st
 
 from fxtick import duck, gdrive, mt_export
 from fxtick.instruments import ALL_CODES
+from fxtick.policy import ExportPurpose
+from fxtick.export_service import build_zip, streamlit_download
 
 st.set_page_config(page_title="FX Tick Data Downloader", layout="centered")
 
-ROOT_FOLDER_ID = st.secrets.get("GDRIVE_FOLDER_ID")
+ROOT_FOLDER_ID = st.secrets.get("GDRIVE_DISTRIBUTION_FOLDER_ID")
+PRIVATE_FOLDER_ID = st.secrets.get("GDRIVE_PRIVATE_REFERENCE_FOLDER_ID")
 TOKEN_JSON = st.secrets.get("GDRIVE_TOKEN_JSON")
 APP_PASSWORD = st.secrets.get("APP_PASSWORD")
 MAX_ATTEMPTS = 5
 
-if not ROOT_FOLDER_ID or not TOKEN_JSON or not APP_PASSWORD:
-    st.error("設定不足: GDRIVE_FOLDER_ID / GDRIVE_TOKEN_JSON / APP_PASSWORD を Secrets に設定してください。")
+if not ROOT_FOLDER_ID or not PRIVATE_FOLDER_ID or not TOKEN_JSON or not APP_PASSWORD:
+    st.error("設定不足: private-reference / distribution の別ルート、token、APP_PASSWORD が必要です。")
     st.stop()
+ROOTS = gdrive.DriveRoots(PRIVATE_FOLDER_ID, ROOT_FOLDER_ID)
 
 # ---------------- 認証 ----------------
 st.session_state.setdefault("authenticated", False)
@@ -62,11 +65,13 @@ FILE_RE = re.compile(r"^(?P<code>[A-Z0-9]+)_(?P<year>\d{4})(?:_(?P<month>\d{2})|
 
 @st.cache_data(ttl=300)
 def list_symbol_files(code: str) -> dict[str, str]:
+    gdrive.assert_zone(service, ROOT_FOLDER_ID, gdrive.StorageZone.DISTRIBUTION, ROOTS)
     folders = gdrive.list_files(service, ROOT_FOLDER_ID, name=code, mime=gdrive.FOLDER_MIME, fields="id, name")
     if not folders:
         return {}
     files = gdrive.list_files(service, folders[0]["id"], name_contains=".parquet", fields="id, name")
-    return {f["name"]: f["id"] for f in sorted(files, key=lambda x: x["name"]) if FILE_RE.match(f["name"])}
+    return gdrive.eligible_distribution_files(service,
+        [f for f in sorted(files, key=lambda x: x["name"]) if FILE_RE.match(f["name"])], roots=ROOTS)
 
 
 def get_years(file_ids: dict[str, str]) -> list[int]:
@@ -163,7 +168,7 @@ if st.button("🚀 生成して ZIP ダウンロード"):
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
             con = duck.connect(threads=2, memory_limit="1GB", temp_dir=tmp / "duck")
-            all_zips: list[tuple[str, bytes]] = []
+            all_zips = []
 
             for code in sorted(plan):
                 for chunk_label, filenames in plan[code]:
@@ -171,32 +176,32 @@ if st.button("🚀 生成して ZIP ダウンロード"):
                     local_parquets = []
                     for i, fname in enumerate(filenames):
                         p = tmp / f"{code}_{chunk_label}_{i}.parquet"
-                        gdrive.download_file(service, all_file_ids[code][fname], p)
+                        gdrive.download_file(service, all_file_ids[code][fname], p,
+                            zone=gdrive.StorageZone.DISTRIBUTION, roots=ROOTS)
                         local_parquets.append(p)
                         step += 1
                         prog.progress(step / total_steps * 0.6)
 
-                    src = f"SELECT * FROM ({duck.union_sources(local_parquets)})"
+                    src = duck.union_sources(local_parquets)
+                    src = src.wrap(f"SELECT * FROM ({src})")
 
                     # 変換
                     outputs: list[tuple[Path, str]] = []
                     if make_mt4:
                         out = tmp / f"{code}_{chunk_label}_{tz_mode}_MT4.csv"
-                        mt_export.export_mt4_ticks(con, src, out, tz_mode)
+                        mt_export.export_mt4_ticks(con, src, out, tz_mode, purpose=ExportPurpose.DISTRIBUTION)
                         outputs.append((out, f"MT4/{out.name}" if fmt == "両方" else out.name))
                     if make_mt5:
                         out = tmp / f"{code}_{chunk_label}_{tz_mode}_MT5.txt"
-                        mt_export.export_mt5_ticks(con, src, out, tz_mode)
+                        mt_export.export_mt5_ticks(con, src, out, tz_mode, purpose=ExportPurpose.DISTRIBUTION)
                         outputs.append((out, f"MT5/{out.name}" if fmt == "両方" else out.name))
 
                     # ZIP 作成（5年区切り1本ずつ）
                     tag = "BOTH" if fmt == "両方" else ("MT4" if make_mt4 else "MT5")
                     zip_name = f"{code}_{chunk_label}_{tz_mode}_{tag}.zip"
                     zip_path = tmp / zip_name
-                    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-                        for p, arc in outputs:
-                            zf.write(p, arcname=arc)
-                    all_zips.append((zip_name, zip_path.read_bytes()))
+                    archive = build_zip(outputs, zip_path, purpose=ExportPurpose.DISTRIBUTION)
+                    all_zips.append(archive)
 
                     # 一時ファイル削除
                     for p in local_parquets:
@@ -206,16 +211,12 @@ if st.button("🚀 生成して ZIP ダウンロード"):
 
             prog.progress(1.0)
 
-        st.success(f"生成完了: {len(all_zips)} 個の ZIP")
-        st.markdown("---")
-        for zip_name, zip_data in all_zips:
-            st.download_button(
-                f"📥 {zip_name}（{len(zip_data) / 1e6:,.1f} MB）",
-                data=zip_data,
-                file_name=zip_name,
-                mime="application/zip",
-                key=zip_name,
-            )
+            st.success(f"生成完了: {len(all_zips)} 個の ZIP")
+            st.markdown("---")
+            for archive in all_zips:
+                streamlit_download(st, archive,
+                    label=f"📥 {archive.path.name}（{archive.size / 1e6:,.1f} MB）",
+                    key=archive.path.name)
 
     except Exception as e:
         st.error(f"処理エラー: {e}")

@@ -1,24 +1,10 @@
-name: Weekly Tick Data Sync
+name: Weekly Private Reference Tick Sync
 
 on:
   schedule:
     - cron: '0 22 * * 5'   # 金 22:00 UTC = 土 07:00 JST
   workflow_dispatch:
     inputs:
-      target_format:
-        description: '配布 ZIP の形式'
-        type: choice
-        default: 'NONE'
-        options: ['NONE', 'MT4', 'MT5', 'BOTH']
-      export_tz:
-        description: '配布 ZIP の時刻'
-        type: choice
-        default: 'broker'
-        options: ['broker', 'utc', 'jst']
-      recipient_email:
-        description: '送付先メール（空なら Step Summary にパスワード表示）'
-        required: false
-        default: ''
       sync_symbols:
         description: '対象銘柄（カンマ区切り、空で全銘柄）'
         required: false
@@ -50,13 +36,10 @@ jobs:
 
       - name: Sync
         env:
-          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+          GDRIVE_PRIVATE_REFERENCE_FOLDER_ID: ${{ secrets.GDRIVE_PRIVATE_REFERENCE_FOLDER_ID }}
+          GDRIVE_DISTRIBUTION_FOLDER_ID: ${{ secrets.GDRIVE_DISTRIBUTION_FOLDER_ID }}
           GDRIVE_TOKEN_JSON: ${{ secrets.GDRIVE_TOKEN_JSON }}
-          MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
-          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
-          TARGET_FORMAT: ${{ github.event.inputs.target_format || 'NONE' }}
-          EXPORT_TZ: ${{ github.event.inputs.export_tz || 'jst' }}
-          RECIPIENT_EMAIL: ${{ github.event.inputs.recipient_email || '' }}
+          TARGET_FORMAT: 'NONE'
           SYNC_SYMBOLS: ${{ github.event.inputs.sync_symbols || '' }}
           MAX_BACKFILL_DAYS: '60'
         run: python sync_and_upload.py
