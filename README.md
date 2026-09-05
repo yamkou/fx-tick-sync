@@ -17,6 +17,11 @@ Phase 3B の内部監視、外部heartbeat、SQLite状態保存、通知adapter�
 `python -S -B monitor_demo.py` は外部通信なしの合成障害・復旧デモです。
 実MT5/cTrader接続、公開受信endpoint、LINE実送信はまだ配備していません。
 
+Phase 3C のHMAC認証付きHTTP入口、Monitor自己監視、通知・復旧準備は
+[docs/PHASE3C_PRODUCTION_MONITORING.md](docs/PHASE3C_PRODUCTION_MONITORING.md) を参照してください。
+`monitor_server.py --config configs/production-monitor.example.json --check` は設定検証のみです。
+本番起動には承認済みSecret、WSGI環境、TLS proxy、boot/sequence運用の準備が必要です。
+
 ```
 .github/workflows/tick_sync.yml   毎週土曜 07:00 JST に sync_and_upload.py を実行
 fxtick/                           共通モジュール（Google Drive FX 側にも同じものを置く。GitHub 側を正とする）
