@@ -46,7 +46,7 @@ def writable(directory):
     return True
 
 
-def check(config_path, check_network=False, minimum_free_bytes=5 * 1024**3):
+def check(config_path, check_network=False, minimum_free_bytes=5 * 1024**3, runtime_path=None):
     results = []
     def record(name, operation):
         try:
@@ -89,7 +89,10 @@ def check(config_path, check_network=False, minimum_free_bytes=5 * 1024**3):
         record(name+'-disk-free', lambda d=directory,c=contained: c and
                shutil.disk_usage(d).free >= minimum_free_bytes)
     terminal = native_path(config.terminals[0].path, Path(config_path).resolve().parent)
-    record('mt5-path', lambda: terminal.name.lower() == 'terminal64.exe' and terminal.is_file())
+    if runtime_path is None:
+        record('mt5-path', lambda: terminal.name.lower() == 'terminal64.exe' and terminal.is_file())
+    else:
+        results.append({'check':'mt5-path-fake-adapter','status':'NOT_APPLICABLE'})
     secrets = EnvironmentSecrets(REFERENCES)
     record('heartbeat-secret-present', lambda: bool(secrets.get('heartbeat-hmac').strip()))
     endpoint = os.environ.get(REFERENCES['monitor-endpoint'], '')
@@ -99,17 +102,25 @@ def check(config_path, check_network=False, minimum_free_bytes=5 * 1024**3):
     else:
         results.append({'check':'outbound-monitor-health','status':'NOT_RUN'})
     # Do not turn passing prerequisites into a misleading real-collector readiness claim.
-    record('real-collector-probe-and-durable-sender-entrypoint', lambda: False)
-    return {'ready': False, 'checks': results}
+    if runtime_path is None:
+        record('real-collector-probe-and-durable-sender-entrypoint', lambda: False)
+        return {'ready': False, 'checks': results}
+    from .collector import dry_run
+    from .watchdog.auth import key_bytes
+    record('collector-runtime-config', lambda: dry_run(config_path, runtime_path)['heartbeat_constructed'])
+    record('hmac-key-usable', lambda: bool(key_bytes(secrets, 'heartbeat-hmac')))
+    return {'ready': all(r['status'] != 'FAIL' for r in results),
+            'scope':'fake-staging-only', 'real_source_ready':False, 'checks':results}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', required=True)
     parser.add_argument('--check-network', action='store_true')
+    parser.add_argument('--runtime')
     args = parser.parse_args()
     try:
-        result = check(args.config, args.check_network)
+        result = check(args.config, args.check_network, runtime_path=args.runtime)
     except Exception:
         result = {'ready':False, 'checks':[{'check':'preflight','status':'FAIL'}]}
     print(json.dumps(result, indent=2))

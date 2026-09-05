@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "adapter": "fake",
+  "boot_id": "staging-boot-01",
+  "key_id": "staging-key-01",
+  "heartbeat_interval_seconds": 60
+}
