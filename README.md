@@ -31,7 +31,8 @@ Phase 3E では専用 `.venv` で旧SKIP 7件とWaitress localhost統合を検�
 
 Phase 4A のMT5×1 staging配置、preflight、bootstrap、secret境界、rollback手順は
 [deployment/windows-staging/README.md](deployment/windows-staging/README.md) を参照してください。
-実Collector起動はプローブ・永続sender統合が完了するまでpreflightでブロックされます。
+Phase 4B-0 では正式な `python -m fxtick.collector` と永続senderをfake sourceへ接続しました。
+[起動・停止・再起動・preflight手順](docs/PHASE4B0_COLLECTOR_RUNTIME.md)を参照してください。実MT5/cTrader接続は未実装です。
 
 ```
 .github/workflows/tick_sync.yml   毎週土曜 07:00 JST に sync_and_upload.py を実行

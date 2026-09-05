@@ -1,5 +1,10 @@
 # Phase 4A — Windows Server 2025 x64 staging package
 
+**Phase 4B-0 update:** the generic runtime and durable sender are now connected for
+explicit fake staging. Use [the current runtime runbook](../../docs/PHASE4B0_COLLECTOR_RUNTIME.md)
+and `preflight --runtime ...` for that scope. The Phase 4A real-source gates and
+historical test record below remain applicable to actual MT5 integration.
+
 ## Verification record
 
 Local Python 3.12.14 dedicated .venv: `python -B tests/run_offline.py` completed

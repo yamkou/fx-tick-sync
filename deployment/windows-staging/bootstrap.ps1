@@ -46,6 +46,17 @@ sys.exit(0 if sys.version_info[:2]==(3,12) and pathlib.Path(sys.prefix).resolve(
     }
     & $VenvPython -B -m fxtick.staging dry-run --config $ConfigPath --component collector
     if ($LASTEXITCODE -ne 0) { throw 'Staging configuration invalid.' }
+    $RuntimePath = Join-Path $DeploymentRoot 'config/runtime.staging.json'
+    if (-not (Test-Path -LiteralPath $RuntimePath)) {
+        # Exclusive creation: never overwrite an existing reviewed boot/key selection.
+        $RuntimeStream = [IO.File]::Open($RuntimePath, [IO.FileMode]::CreateNew)
+        try {
+            $RuntimeBytes = [IO.File]::ReadAllBytes((Join-Path $PSScriptRoot 'runtime.template.json'))
+            $RuntimeStream.Write($RuntimeBytes, 0, $RuntimeBytes.Length)
+        } finally { $RuntimeStream.Dispose() }
+    }
+    & $VenvPython -B -m fxtick.collector --config $ConfigPath --runtime $RuntimePath --dry-run
+    if ($LASTEXITCODE -ne 0) { throw 'Collector runtime configuration invalid.' }
     Write-Output 'Preparation finished. No collector, heartbeat, terminal or service started. Run preflight next.'
 } finally {
     Pop-Location
