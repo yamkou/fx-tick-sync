@@ -1,0 +1,5 @@
+# Full offline integration verification; unittest is in the standard library.
+-r requirements.txt
+-r requirements-actions.txt
+-r requirements-core.txt
+-r requirements-monitor.txt
